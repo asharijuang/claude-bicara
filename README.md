@@ -1,6 +1,16 @@
-# 🎙️ Cowork Voice Listener
+# 🎙️ Claude Bicara
 
-Listen to Claude Cowork responses hands-free — a tiny background daemon that watches your Cowork session, asks a local Ollama model to summarize each reply into a short, phone-conversation-style sentence, and reads it out loud with your OS's built-in TTS.
+> _"Claude yang bisa ngomong."_
+
+<p align="left">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey">
+  <img alt="Python" src="https://img.shields.io/badge/python-3.8%2B-yellow">
+  <img alt="Ollama" src="https://img.shields.io/badge/ollama-local-green">
+  <img alt="Status" src="https://img.shields.io/badge/status-active-brightgreen">
+</p>
+
+Listen to Claude Cowork responses hands-free — a tiny background daemon that watches your Cowork session, asks a **local** Ollama model to summarize each reply into a short, phone-conversation-style sentence, and reads it out loud with your OS's built-in TTS.
 
 **Everything runs locally.** No cloud calls. No API keys. No data leaves your machine.
 
@@ -8,32 +18,50 @@ Listen to Claude Cowork responses hands-free — a tiny background daemon that w
 
 ---
 
+## 🎬 Demo
+
+```
+[You:]       buatkan cerita pendek tentang harry potter
+
+[Claude:]    Keajaiban di Hogsmeade. Harry Potter berjalan melalui jalan bersalju
+             menuju Hogsmeade, sekolah sihir terlarang untuk pelajar...
+             (400+ words)
+
+[Bicara 🎙️] "Harry ketemu Ron dan Hermione di Tiga Sapu, ngobrolin
+              Magic Quidditch sambil minum cokelat panas."
+```
+
+> 💡 _Add a screen-recording or animated GIF here to show it in action._
+
+---
+
 ## ✨ Features
 
-- **Automatic monitoring** — watches the latest Cowork session transcript (`.jsonl`)
-- **Local summarization** — uses Ollama (`gemma3:1b` by default, ~777 MB, super fast)
-- **Natural speech** — strips emojis, markdown, and code blocks before speaking
-- **Conversational tone** — summaries sound like a friend calling you on the phone
-- **Cross-platform TTS** — macOS (`say`), Windows (SAPI), Linux (`espeak`)
-- **Auto-start on boot** — via `launchd` on macOS
-- **Deduped by hash** — never speaks the same response twice
+- 🔎 **Automatic monitoring** — watches the latest Cowork session transcript (`.jsonl`)
+- 🧠 **Local summarization** — uses Ollama (`gemma3:1b` by default, ~777 MB, super fast)
+- 🗣️ **Natural speech** — strips emojis, markdown, and code blocks before speaking
+- ☎️ **Conversational tone** — summaries sound like a friend calling you on the phone
+- 💻 **Cross-platform TTS** — macOS (`say`), Windows (SAPI), Linux (`espeak`)
+- 🔁 **Auto-start on boot** — via `launchd` on macOS
+- 🧼 **Deduped by hash** — never speaks the same response twice
+- 🔒 **100% offline** — no telemetry, no API keys, no network calls beyond localhost Ollama
 
 ---
 
 ## 📦 Requirements
 
-- **Claude Desktop** with Cowork mode
-- **[Ollama](https://ollama.com)** running locally
-- **Python 3.8+** with `requests` package
-- macOS 11+ (tested), Windows 10+, or Linux with `espeak`
+- [**Claude Desktop**](https://claude.ai/download) with Cowork mode
+- [**Ollama**](https://ollama.com) running locally
+- **Python 3.8+** with `requests`
+- macOS 11+, Windows 10+, or Linux with `espeak`
 
 ---
 
 ## 🚀 Quick Install (macOS)
 
 ```bash
-git clone https://github.com/<your-username>/cowork-voice-listener.git
-cd cowork-voice-listener
+git clone https://github.com/asharijuang/claude-bicara.git
+cd claude-bicara
 bash install.sh
 ```
 
@@ -62,16 +90,11 @@ tail -f ~/.claude/cowork-listener.log
 launchctl list | grep cowork-listener
 ```
 
-**Stop it:**
+**Stop / Start:**
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.cowork-listener.plist
-```
-
-**Start it again:**
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.cowork-listener.plist
+launchctl load   ~/Library/LaunchAgents/com.cowork-listener.plist
 ```
 
 ---
@@ -172,20 +195,53 @@ rm ~/.claude/.cowork_last_spoken
 - Check the log for the session file path: `grep 'Session file' ~/.claude/cowork-listener.log`
 - Cowork must actually be writing the session — try sending a message in Cowork first
 
-**launchctl load fails with I/O error?**
+**`launchctl load` fails with I/O error?**
 - Validate the plist: `plutil -lint ~/Library/LaunchAgents/com.cowork-listener.plist`
 - Re-run `install.sh` to regenerate a clean plist
 
 ---
 
+## 🗺️ Roadmap / Wishlist
+
+Things we want to add next — PRs welcome!
+
+### 🎤 Voice & TTS engines
+- [ ] **Japanese voice** support (kawaii mode!)
+- [ ] [**VOICEVOX**](https://voicevox.hiroshiba.jp/) integration (high-quality JP TTS, free)
+- [ ] [**Piper**](https://github.com/rhasspy/piper) integration (fast local neural TTS, multilingual)
+- [ ] [**Coqui TTS**](https://github.com/coqui-ai/TTS) option
+- [ ] ElevenLabs-style local alternative
+
+### 🎭 Tone presets
+- [ ] `professional-formal` — bahasa baku, to-the-point, cocok untuk meeting
+- [ ] `casual-santai` — default, kayak ngobrol sama temen (sudah ada ✅)
+- [ ] `cute-imut` — "UwU hai~ Claude barusan bikin sesuatu yang seru loh~"
+- [ ] `anime-sensei` — energetic, campur sedikit bahasa Jepang ("Yosh!", "Ganbatte!")
+- [ ] `news-anchor` — seperti presenter berita, pengucapan jelas
+
+### 🧠 Summarization
+- [ ] Multilingual prompts (English, Japanese, Indonesian, etc.)
+- [ ] Configurable summary length (1 kalimat / 2-3 kalimat / paragraph)
+- [ ] Skip tool-calls output option (only speak natural language responses)
+
+### 🖥️ UX
+- [ ] Menu-bar icon with mute toggle, model switcher, tone switcher
+- [ ] Native notification when daemon starts/stops
+- [ ] Desktop widget showing current status
+- [ ] Web dashboard (localhost:xxxx) for live monitoring
+
+### 📦 Packaging
+- [ ] Homebrew formula (`brew install claude-bicara`)
+- [ ] `.pkg` installer for non-technical users
+- [ ] Windows auto-start (Scheduled Task installer)
+- [ ] Docker image for Linux users
+- [ ] Linux systemd unit file
+
+---
+
 ## 🤝 Contributing
 
-PRs welcome. Good first issues:
-
-- Add more voice options (OpenAI TTS, ElevenLabs local, Piper)
-- Support English / multilingual prompts
-- Add a menu-bar icon for start/stop/mute
-- Windows auto-start (Scheduled Task)
+PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -195,4 +251,6 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-Built with ☕ and a lot of `say -v Damayanti "halo"`.
+<p align="center">
+  Built with ☕ in Indonesia. Powered by <a href="https://ollama.com">Ollama</a> &amp; <a href="https://claude.ai">Claude</a>.
+</p>
