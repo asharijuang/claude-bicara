@@ -37,6 +37,18 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
+# TTS backend — "system" (macOS say / Windows SAPI / Linux espeak) or "voicevox"
+TTS_BACKEND = "system"
+
+# VOICEVOX configuration — requires VOICEVOX engine running at localhost:50021
+# Start it via the VOICEVOX app or Docker: docker run -p 50021:50021 voicevox/voicevox_engine
+VOICEVOX_URL = "http://localhost:50021"
+VOICEVOX_SPEAKER = 3   # 3=Zundamon (cute), 8=Tsumugi, 2=Shikoku Metan, 14=Hau
+VOICEVOX_SPEED = 1.1   # 0.5 - 2.0
+
+# Tone preset — pick one: "casual", "formal", "cute", "anime", "news", "senpai"
+TONE = "casual"
+
 # Tone preset — pick one: "casual", "formal", "cute", "anime", "news"
 TONE = "casual"
 
@@ -88,6 +100,20 @@ TONE_PROMPTS = {
         "- Mulai dengan subjek yang jelas\n"
         "- Skip detail teknis dan command\n"
         "- Tanpa emoji, tanpa markdown"
+    ),
+    "senpai": (
+        "Ringkas teks ini dengan gaya kouhai/anime girl yang bicara ke senpai-nya.\n"
+        "Aturan:\n"
+        "- Maksimal 1-2 kalimat pendek\n"
+        "- Bahasa Indonesia casual dicampur romaji Jepang ringan\n"
+        "- WAJIB selipkan kata seperti: senpai, desu ne, ne~, yatta, sugoi, "
+        "daijoubu, ganbatte, arigatou, sumimasen, hai\n"
+        "- Akhiran sering 'desu ne~', 'da yo', atau 'nanoda'\n"
+        "- Manis, imut, tapi tetap jelas pesan intinya\n"
+        "- Skip command dan code\n"
+        "- Tanpa emoji, tanpa markdown\n\n"
+        "Contoh gaya: 'Senpai, bug-nya udah aku perbaiki desu ne~, "
+        "coba restart ya senpai, ganbatte!'"
     ),
 }
 
@@ -320,7 +346,70 @@ def speak_linux(text):
         return False
 
 
+def speak_voicevox(text):
+    """Speak text using local VOICEVOX engine (Japanese TTS).
+
+    VOICEVOX renders Japanese/romaji naturally but struggles with pure
+    Indonesian. Best used with TONE='senpai' which mixes romaji Japanese
+    phrases into the Indonesian summary.
+    """
+    try:
+        text = strip_emojis_and_code(text)
+        if not text.strip():
+            return False
+
+        # Step 1: build audio query
+        q_resp = requests.post(
+            f"{VOICEVOX_URL}/audio_query",
+            params={"text": text, "speaker": VOICEVOX_SPEAKER},
+            timeout=10,
+        )
+        if q_resp.status_code != 200:
+            log(f"VOICEVOX audio_query failed: {q_resp.status_code}")
+            return False
+
+        query = q_resp.json()
+        query["speedScale"] = VOICEVOX_SPEED
+
+        # Step 2: synthesize WAV
+        s_resp = requests.post(
+            f"{VOICEVOX_URL}/synthesis",
+            params={"speaker": VOICEVOX_SPEAKER},
+            json=query,
+            timeout=30,
+        )
+        if s_resp.status_code != 200:
+            log(f"VOICEVOX synthesis failed: {s_resp.status_code}")
+            return False
+
+        # Step 3: play WAV (macOS afplay, Linux aplay, Windows PowerShell)
+        wav_path = "/tmp/claude_bicara_voicevox.wav"
+        with open(wav_path, "wb") as f:
+            f.write(s_resp.content)
+
+        if sys.platform == "darwin":
+            subprocess.run(["afplay", wav_path], check=True, timeout=300)
+        elif sys.platform == "win32":
+            ps = f"(New-Object Media.SoundPlayer '{wav_path}').PlaySync();"
+            subprocess.run(["powershell", "-Command", ps], check=True, timeout=300)
+        else:
+            subprocess.run(["aplay", wav_path], check=True, timeout=300)
+        return True
+    except requests.exceptions.ConnectionError:
+        log("VOICEVOX engine not reachable — is it running on localhost:50021?")
+        return False
+    except Exception as e:
+        log(f"VOICEVOX error: {e}")
+        return False
+
+
 def speak(text):
+    """Route to the configured TTS backend with auto-fallback to system TTS."""
+    if TTS_BACKEND == "voicevox":
+        if speak_voicevox(text):
+            return True
+        log("VOICEVOX failed — falling back to system TTS")
+
     if sys.platform == "darwin":
         return speak_mac(text)
     if sys.platform == "win32":
@@ -336,6 +425,7 @@ def main():
         log(f"Tone preset: {TONE}")
     else:
         log("Ollama not available - will speak raw text")
+    log(f"TTS backend: {TTS_BACKEND}")
 
     iteration = 0
     try:

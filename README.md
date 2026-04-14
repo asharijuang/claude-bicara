@@ -88,16 +88,46 @@ Open `~/.claude/cowork-listener.py` and edit the top of the file:
 | `OLLAMA_MODEL`   | `gemma3:1b`    | any model you have pulled in Ollama       |
 | `OLLAMA_TIMEOUT` | `20`           | max seconds before falling back to raw    |
 | `TONE`           | `casual`       | summary tone — see table below            |
+| `TTS_BACKEND`    | `system`       | `system` (OS TTS) or `voicevox` (JP)      |
+| `VOICEVOX_SPEAKER` | `3`          | 3=Zundamon, 8=Tsumugi, 2=Shikoku Metan    |
+| `VOICEVOX_SPEED` | `1.1`          | 0.5 – 2.0                                 |
 
 ### 🎭 Tone presets
 
-| `TONE`     | Gaya bicara                           | Contoh                                         |
-| ---------- | ------------------------------------- | ---------------------------------------------- |
-| `casual`   | Ngobrol santai kayak sama temen ✅    | "Bug-nya udah diperbaiki, coba restart ya."    |
-| `formal`   | Profesional, formal, briefing rapat   | "Bug telah diperbaiki. Silakan restart."       |
-| `cute`     | Imut dan menggemaskan~                | "Bug-nya udah beres dong, restart yuk hehe~"   |
-| `anime`    | Anime sensei energik                  | "Yosh! Bug-nya sukses diperbaiki. Ganbatte!"   |
-| `news`     | Presenter berita                      | "Bug telah berhasil diperbaiki dan siap di-uji." |
+| `TONE`     | Gaya bicara                           | Contoh                                                                           |
+| ---------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| `casual`   | Ngobrol santai kayak sama temen ✅    | "Bug-nya udah diperbaiki, coba restart ya."                                      |
+| `formal`   | Profesional, formal, briefing rapat   | "Bug telah diperbaiki. Silakan restart."                                         |
+| `cute`     | Imut dan menggemaskan~                | "Bug-nya udah beres dong, restart yuk hehe~"                                     |
+| `anime`    | Anime sensei energik                  | "Yosh! Bug-nya sukses diperbaiki. Ganbatte!"                                     |
+| `news`     | Presenter berita                      | "Bug telah berhasil diperbaiki dan siap diuji."                                  |
+| `senpai`   | Kouhai imut ke senpai (romaji JP) ✨  | "Senpai, bug-nya udah aku perbaiki desu ne~, coba restart ya senpai, ganbatte!" |
+
+### 🇯🇵 VOICEVOX (Japanese TTS)
+
+Want a real anime-girl voice? Combine `TONE=senpai` with `TTS_BACKEND=voicevox`.
+
+**1. Install VOICEVOX engine:**
+
+```bash
+# Option A: Docker (easiest, CPU version)
+docker run -d --rm -p 50021:50021 voicevox/voicevox_engine:cpu-latest
+
+# Option B: Native app
+# Download from https://voicevox.hiroshiba.jp/
+```
+
+**2. Edit `~/.claude/cowork-listener.py`:**
+
+```python
+TTS_BACKEND = "voicevox"
+VOICEVOX_SPEAKER = 3       # Zundamon — cutest
+TONE = "senpai"            # summary sprinkled with desu ne~
+```
+
+**3. Restart the daemon** — now every Claude response becomes an anime kouhai cheering you on. 💮
+
+> _Heads-up: VOICEVOX renders Japanese characters & romaji naturally, but pure Indonesian words get pronounced phonetically. That's the whole charm of the `senpai` tone — it deliberately mixes romaji Japanese phrases into the summary._
 
 Restart the daemon after editing:
 
