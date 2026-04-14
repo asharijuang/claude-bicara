@@ -38,7 +38,7 @@ OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
 # TTS backend — "system" (OS TTS), "voicevox" (Japanese), "piper" (neural Indonesian)
-TTS_BACKEND = "hybrid"
+TTS_BACKEND = "piper"
 
 # Piper configuration — neural TTS, ~60 MB per voice model
 PIPER_MODEL = os.path.expanduser("~/.claude/piper-voices/id_ID-news_tts-medium.onnx")
@@ -52,20 +52,13 @@ TONE = "senpai"
 
 TONE_PROMPTS = {
     "casual": (
-        "Ringkas teks ini dengan gaya chat gaul kekinian di grup WhatsApp/Discord "
-        "bareng teman dekat.\n"
+        "Ringkas teks ini seperti sedang ngobrol santai di telepon ke teman.\n"
         "Aturan:\n"
         "- Maksimal 1-2 kalimat pendek\n"
-        "- Bahasa gaul Indonesia modern\n"
-        "- Pakai 'gw/gue', 'lu/lo', 'nih', 'kan', 'sih', 'dong', 'cuy', 'bestie'\n"
-        "- Boleh selipkan: 'auto', 'literally', 'mantul', 'anjay', 'njir', "
-        "'gilasih', 'wagelaseh', 'mantap jiwa'\n"
+        "- Bahasa Indonesia casual, natural\n"
         "- Skip detail teknis, command, code, link\n"
         "- Fokus ke pesan inti saja\n"
-        "- Tanpa emoji, tanpa markdown\n\n"
-        "Contoh gaya:\n"
-        "- 'Njir mantul, bug-nya auto kelar cuy, tinggal restart aja sih!'\n"
-        "- 'Gw literally udah beresin tuh, tinggal lu coba bro!'"
+        "- Tanpa emoji, tanpa markdown"
     ),
     "formal": (
         "Ringkas teks berikut dengan gaya profesional dan formal seperti "
