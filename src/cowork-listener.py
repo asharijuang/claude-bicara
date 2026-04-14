@@ -37,20 +37,18 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
-# TTS backend — "system" (macOS say / Windows SAPI / Linux espeak) or "voicevox"
-TTS_BACKEND = "system"
+# TTS backend — "system" (OS TTS), "voicevox" (Japanese), "piper" (neural Indonesian)
+TTS_BACKEND = "piper"
 
-# VOICEVOX configuration — requires VOICEVOX engine running at localhost:50021
-# Start it via the VOICEVOX app or Docker: docker run -p 50021:50021 voicevox/voicevox_engine
-VOICEVOX_URL = "http://localhost:50021"
-VOICEVOX_SPEAKER = 3   # 3=Zundamon (cute), 8=Tsumugi, 2=Shikoku Metan, 14=Hau
-VOICEVOX_SPEED = 1.1   # 0.5 - 2.0
-
-# Tone preset — pick one: "casual", "formal", "cute", "anime", "news", "senpai"
-TONE = "casual"
+# Piper configuration — neural TTS, ~60 MB per voice model
+PIPER_MODEL = os.path.expanduser("~/.claude/piper-voices/id_ID-news_tts-medium.onnx")
+PIPER_DATA_DIR = os.path.expanduser("~/.claude/piper-voices")
+PIPER_LENGTH_SCALE = 0.8   # 1.0=normal, <1.0=faster/younger, >1.0=slower
+PIPER_NOISE_SCALE = 0.8    # voice variability
+PIPER_VOLUME_BOOST = 2.0   # afplay volume multiplier
 
 # Tone preset — pick one: "casual", "formal", "cute", "anime", "news"
-TONE = "casual"
+TONE = "senpai"
 
 TONE_PROMPTS = {
     "casual": (
@@ -116,6 +114,27 @@ TONE_PROMPTS = {
         "coba restart ya senpai, ganbatte!'"
     ),
 }
+
+def split_jp_id(text):
+    """Split text into [(segment, is_japanese), ...] by sentence.
+
+    Detects Japanese if >= 30% of words in a sentence are romaji JP tokens.
+    """
+    import re
+    sentences = re.split(r"(?<=[.!?~])\s+", text)
+    result = []
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        words = re.findall(r"[A-Za-z~]+", sent.lower())
+        if not words:
+            result.append((sent, False))
+            continue
+        jp_count = sum(1 for w in words if w.strip("~") in JAPANESE_TOKENS)
+        is_jp = jp_count >= max(1, len(words) * 0.3)
+        result.append((sent, is_jp))
+    return result
 
 Path(CLAUDE_DIR).mkdir(parents=True, exist_ok=True)
 
@@ -346,66 +365,110 @@ def speak_linux(text):
         return False
 
 
-def speak_voicevox(text):
-    """Speak text using local VOICEVOX engine (Japanese TTS).
+_piper_voice_cache = None
 
-    VOICEVOX renders Japanese/romaji naturally but struggles with pure
-    Indonesian. Best used with TONE='senpai' which mixes romaji Japanese
-    phrases into the Indonesian summary.
-    """
+def _get_piper_voice():
+    """Lazy-load Piper voice model (keeps it in memory)."""
+    global _piper_voice_cache
+    if _piper_voice_cache is None:
+        from piper import PiperVoice
+        from pathlib import Path
+        Path(PIPER_DATA_DIR).mkdir(parents=True, exist_ok=True)
+        voice = PiperVoice.load(PIPER_MODEL)
+        voice.download_dir = Path(PIPER_DATA_DIR)
+        _piper_voice_cache = voice
+    return _piper_voice_cache
+
+
+def speak_piper(text):
+    """Speak text using local Piper neural TTS (Python API, supports all langs)."""
     try:
+        import wave
+        from piper import SynthesisConfig
+
         text = strip_emojis_and_code(text)
         if not text.strip():
             return False
-
-        # Step 1: build audio query
-        q_resp = requests.post(
-            f"{VOICEVOX_URL}/audio_query",
-            params={"text": text, "speaker": VOICEVOX_SPEAKER},
-            timeout=10,
-        )
-        if q_resp.status_code != 200:
-            log(f"VOICEVOX audio_query failed: {q_resp.status_code}")
+        if not os.path.exists(PIPER_MODEL):
+            log(f"Piper model not found at {PIPER_MODEL}")
             return False
 
-        query = q_resp.json()
-        query["speedScale"] = VOICEVOX_SPEED
-
-        # Step 2: synthesize WAV
-        s_resp = requests.post(
-            f"{VOICEVOX_URL}/synthesis",
-            params={"speaker": VOICEVOX_SPEAKER},
-            json=query,
-            timeout=30,
+        voice = _get_piper_voice()
+        cfg = SynthesisConfig(
+            length_scale=PIPER_LENGTH_SCALE,
+            noise_scale=PIPER_NOISE_SCALE,
+            volume=1.0,
         )
-        if s_resp.status_code != 200:
-            log(f"VOICEVOX synthesis failed: {s_resp.status_code}")
-            return False
 
-        # Step 3: play WAV (macOS afplay, Linux aplay, Windows PowerShell)
-        wav_path = "/tmp/claude_bicara_voicevox.wav"
-        with open(wav_path, "wb") as f:
-            f.write(s_resp.content)
+        wav_path = "/tmp/claude_bicara_piper.wav"
+        with wave.open(wav_path, "wb") as wav:
+            voice.synthesize_wav(text, wav, syn_config=cfg)
 
         if sys.platform == "darwin":
-            subprocess.run(["afplay", wav_path], check=True, timeout=300)
+            subprocess.run(
+                ["afplay", "-v", str(PIPER_VOLUME_BOOST), wav_path],
+                check=True, timeout=300,
+            )
         elif sys.platform == "win32":
             ps = f"(New-Object Media.SoundPlayer '{wav_path}').PlaySync();"
             subprocess.run(["powershell", "-Command", ps], check=True, timeout=300)
         else:
             subprocess.run(["aplay", wav_path], check=True, timeout=300)
         return True
-    except requests.exceptions.ConnectionError:
-        log("VOICEVOX engine not reachable — is it running on localhost:50021?")
+    except ImportError:
+        log("Piper not installed — run: pip install piper-tts")
         return False
     except Exception as e:
-        log(f"VOICEVOX error: {e}")
+        log(f"Piper error: {e}")
+        return False
+
+
+def speak_kyoko(text):
+    """Speak text with macOS Kyoko (Japanese voice), boosted volume."""
+    try:
+        text = strip_emojis_and_code(text)
+        if not text.strip():
+            return False
+        subprocess.run(
+            ["say", "-v", "Kyoko", "-r", "200", text],
+            check=True, timeout=300,
+        )
+        return True
+    except Exception as e:
+        log(f"Kyoko error: {e}")
+        return False
+
+
+def speak_hybrid(text):
+    """Split text by language — Piper speaks Indonesian, Kyoko speaks Japanese."""
+    try:
+        segments = split_jp_id(text)
+        if not segments:
+            return False
+        for seg, is_jp in segments:
+            engine = "Kyoko" if is_jp else "Piper"
+            log(f"[hybrid/{engine}] {seg[:60]}")
+            if is_jp:
+                speak_kyoko(seg)
+            else:
+                speak_piper(seg)
+        return True
+    except Exception as e:
+        log(f"Hybrid error: {e}")
         return False
 
 
 def speak(text):
     """Route to the configured TTS backend with auto-fallback to system TTS."""
-    if TTS_BACKEND == "voicevox":
+    if TTS_BACKEND == "hybrid":
+        if speak_hybrid(text):
+            return True
+        log("Hybrid failed — falling back to system TTS")
+    elif TTS_BACKEND == "piper":
+        if speak_piper(text):
+            return True
+        log("Piper failed — falling back to system TTS")
+    elif TTS_BACKEND == "voicevox":
         if speak_voicevox(text):
             return True
         log("VOICEVOX failed — falling back to system TTS")

@@ -110,6 +110,39 @@ Open `~/.claude/cowork-listener.py` and edit the top of the file:
 | `CHECK_INTERVAL` | `10`           | poll interval in seconds                  |
 | `OLLAMA_MODEL`   | `gemma3:1b`    | any model you have pulled in Ollama       |
 | `OLLAMA_TIMEOUT` | `20`           | max seconds before falling back to raw    |
+| `TTS_BACKEND`    | `system`       | `system`, `voicevox`, `piper`, or `hybrid` |
+| `PIPER_MODEL`    | id_ID-news_tts | Piper voice .onnx path                    |
+| `PIPER_LENGTH_SCALE` | `0.8`      | <1.0 = faster/younger voice               |
+| `PIPER_NOISE_SCALE`  | `0.8`      | voice variability                         |
+| `PIPER_VOLUME_BOOST` | `2.0`      | afplay -v multiplier (macOS)              |
+
+### 🧠 Piper neural TTS (Indonesian, natural voice)
+
+Clearer Indonesian than `say -v Damayanti` and more natural than VOICEVOX for Indonesian text.
+
+**Install:**
+
+```bash
+pip3 install --user piper-tts
+mkdir -p ~/.claude/piper-voices && cd ~/.claude/piper-voices
+curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/id/id_ID/news_tts/medium/id_ID-news_tts-medium.onnx
+curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/id/id_ID/news_tts/medium/id_ID-news_tts-medium.onnx.json
+```
+
+Then set `TTS_BACKEND = "piper"` in the daemon. ~60 MB model, ~300 MB RAM when speaking.
+
+### 🎌 Hybrid TTS (Piper Indonesian + macOS Kyoko for Japanese)
+
+Set `TTS_BACKEND = "hybrid"` and `TONE = "senpai"` to get the best of both worlds:
+- **Indonesian sentences** spoken by Piper neural voice (clear pronunciation)
+- **Japanese romaji sentences** spoken by macOS Kyoko (authentic Japanese)
+
+The daemon splits each summary by sentence and routes based on language density.
+The `senpai` tone prompt is tuned to produce **separate** Indonesian and Japanese
+sentences (e.g., _"Hai senpai! Bug-nya auto fixed. Sugoi desu ne. Ganbatte kudasai!"_),
+so the hybrid split works cleanly.
+
+No extra install required — Kyoko is built into macOS.
 | `TONE`           | `casual`       | summary tone — see table below            |
 | `TTS_BACKEND`    | `system`       | `system` (OS TTS) or `voicevox` (JP)      |
 | `VOICEVOX_SPEAKER` | `3`          | 3=Zundamon, 8=Tsumugi, 2=Shikoku Metan    |
