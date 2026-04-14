@@ -37,6 +37,60 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
+# Tone preset — pick one: "casual", "formal", "cute", "anime", "news"
+TONE = "casual"
+
+TONE_PROMPTS = {
+    "casual": (
+        "Ringkas teks ini seperti sedang ngobrol santai di telepon ke teman.\n"
+        "Aturan:\n"
+        "- Maksimal 1-2 kalimat pendek\n"
+        "- Bahasa Indonesia casual, natural\n"
+        "- Skip detail teknis, command, code, link\n"
+        "- Fokus ke pesan inti saja\n"
+        "- Tanpa emoji, tanpa markdown"
+    ),
+    "formal": (
+        "Ringkas teks berikut dengan gaya profesional dan formal seperti "
+        "briefing rapat ke kolega senior.\n"
+        "Aturan:\n"
+        "- Maksimal 1-2 kalimat\n"
+        "- Bahasa Indonesia baku, jelas, to-the-point\n"
+        "- Hindari slang dan bahasa informal\n"
+        "- Skip detail teknis dan command\n"
+        "- Tanpa emoji, tanpa markdown"
+    ),
+    "cute": (
+        "Ringkas teks ini dengan gaya super imut dan menggemaskan~ kayak asisten "
+        "virtual yang ceria banget!\n"
+        "Aturan:\n"
+        "- Maksimal 1-2 kalimat pendek\n"
+        "- Bahasa Indonesia casual dengan sentuhan imut (pakai 'yuk', 'dong', 'loh')\n"
+        "- Boleh tambahin 'hehe' atau 'yeay' sesekali\n"
+        "- Tetap jelas informasinya\n"
+        "- Skip command dan code\n"
+        "- Tanpa emoji, tanpa markdown"
+    ),
+    "anime": (
+        "Ringkas teks ini dengan energi anime-sensei yang semangat!\n"
+        "Aturan:\n"
+        "- Maksimal 1-2 kalimat pendek\n"
+        "- Bahasa Indonesia dengan selipan kata Jepang ringan (Yosh, Ganbatte, Sugoi)\n"
+        "- Energik dan bersemangat\n"
+        "- Skip detail teknis dan command\n"
+        "- Tanpa emoji, tanpa markdown"
+    ),
+    "news": (
+        "Ringkas teks berikut seperti presenter berita membacakan headline.\n"
+        "Aturan:\n"
+        "- Maksimal 1-2 kalimat\n"
+        "- Bahasa Indonesia baku dan netral\n"
+        "- Mulai dengan subjek yang jelas\n"
+        "- Skip detail teknis dan command\n"
+        "- Tanpa emoji, tanpa markdown"
+    ),
+}
+
 Path(CLAUDE_DIR).mkdir(parents=True, exist_ok=True)
 
 
@@ -188,16 +242,11 @@ def summarize_with_ollama(text):
         if len(text) > 3000:
             text = text[:3000] + "..."
 
+        tone_prompt = TONE_PROMPTS.get(TONE, TONE_PROMPTS["casual"])
         prompt = (
-            "Ringkas teks ini seperti sedang ngobrol santai di telepon ke teman.\n"
-            "Aturan:\n"
-            "- Maksimal 1-2 kalimat pendek\n"
-            "- Bahasa Indonesia casual, natural\n"
-            "- Skip detail teknis, command, code, link\n"
-            "- Fokus ke pesan inti saja\n"
-            "- Tanpa emoji, tanpa markdown\n\n"
+            f"{tone_prompt}\n\n"
             f"Teks:\n{text}\n\n"
-            "Ringkasan (1-2 kalimat casual):"
+            "Ringkasan (1-2 kalimat):"
         )
 
         response = requests.post(
@@ -284,6 +333,7 @@ def main():
     ollama_ok = check_ollama_available()
     if ollama_ok:
         log(f"Ollama available with model: {OLLAMA_MODEL}")
+        log(f"Tone preset: {TONE}")
     else:
         log("Ollama not available - will speak raw text")
 
