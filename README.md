@@ -87,6 +87,17 @@ Open `~/.claude/cowork-listener.py` and edit the top of the file:
 | `CHECK_INTERVAL` | `10`           | poll interval in seconds                  |
 | `OLLAMA_MODEL`   | `gemma3:1b`    | any model you have pulled in Ollama       |
 | `OLLAMA_TIMEOUT` | `20`           | max seconds before falling back to raw    |
+| `TONE`           | `casual`       | summary tone — see table below            |
+
+### 🎭 Tone presets
+
+| `TONE`     | Gaya bicara                           | Contoh                                         |
+| ---------- | ------------------------------------- | ---------------------------------------------- |
+| `casual`   | Ngobrol santai kayak sama temen ✅    | "Bug-nya udah diperbaiki, coba restart ya."    |
+| `formal`   | Profesional, formal, briefing rapat   | "Bug telah diperbaiki. Silakan restart."       |
+| `cute`     | Imut dan menggemaskan~                | "Bug-nya udah beres dong, restart yuk hehe~"   |
+| `anime`    | Anime sensei energik                  | "Yosh! Bug-nya sukses diperbaiki. Ganbatte!"   |
+| `news`     | Presenter berita                      | "Bug telah berhasil diperbaiki dan siap di-uji." |
 
 Restart the daemon after editing:
 
