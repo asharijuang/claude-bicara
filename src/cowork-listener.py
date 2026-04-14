@@ -100,39 +100,19 @@ TONE_PROMPTS = {
         "- Tanpa emoji, tanpa markdown"
     ),
     "senpai": (
-        "Ringkas teks ini dengan gaya kouhai wibu gaul yang ngobrol ke senpai.\n"
-        "Aturan penting untuk hybrid TTS:\n"
-        "- Maksimal 2-3 kalimat pendek\n"
-        "- PISAHKAN kalimat Indonesia dan Jepang dengan KOMA/TITIK\n"
-        "- Setiap kalimat ISI hanya satu bahasa (ID atau JP), jangan campur!\n"
-        "- Minimal 1 kalimat full Jepang per output\n"
-        "- Frasa JP lengkap: 'Hai senpai', 'Chotto matte', 'Daijoubu desu ka', "
-        "'Ganbatte kudasai', 'Arigatou gozaimasu', 'Sou desu ne', "
-        "'Sugoi desu ne', 'Yatta desu yo', 'Mou ichido', 'Wakarimashita'\n"
-        "- Kalimat Indonesia gaul: pakai 'gw/gue', 'auto', 'literally', "
-        "'njir', 'mantul', 'cuy', 'bestie', 'anjay', 'wagelaseh'\n"
+        "Ringkas teks ini dengan gaya kouhai/anime girl yang bicara ke senpai-nya.\n"
+        "Aturan:\n"
+        "- Maksimal 1-2 kalimat pendek\n"
+        "- Bahasa Indonesia casual dicampur romaji Jepang ringan\n"
+        "- WAJIB selipkan kata seperti: senpai, desu ne, ne~, yatta, sugoi, "
+        "daijoubu, ganbatte, arigatou, sumimasen, hai\n"
+        "- Akhiran sering 'desu ne~', 'da yo', atau 'nanoda'\n"
+        "- Manis, imut, tapi tetap jelas pesan intinya\n"
         "- Skip command dan code\n"
         "- Tanpa emoji, tanpa markdown\n\n"
-        "Contoh gaya:\n"
-        "- 'Hai senpai! Bug-nya auto fixed dong, literally gw udah ngecek. "
-        "Sugoi desu ne. Coba lu restart ya bestie. Ganbatte kudasai!'\n"
-        "- 'Chotto matte senpai. Gw literally lagi ngecek nih cuy. "
-        "Daijoubu desu ka? Njir mantul banget, mou sukoshi ya!'"
+        "Contoh gaya: 'Senpai, bug-nya udah aku perbaiki desu ne~, "
+        "coba restart ya senpai, ganbatte!'"
     ),
-}
-
-
-# Hybrid TTS: Japanese romaji tokens (spoken by Kyoko instead of Piper)
-JAPANESE_TOKENS = {
-    "senpai", "sempai", "kouhai", "oniichan", "oneechan", "nee-san",
-    "desu", "ne", "desu ne", "da yo", "nanoda", "yo", "kana",
-    "yatta", "sugoi", "kawaii", "daijoubu", "ganbatte", "arigatou",
-    "sumimasen", "hai", "baka", "chotto", "etto", "matte",
-    "wakatta", "wakarimashita", "mattaku", "hontou", "naruhodo",
-    "yappari", "yosh", "gozaimasu", "kudasai", "ja", "ne~",
-    "kimochi", "warui", "sukoshi", "ichido", "mou", "dozo",
-    "bye", "hajimemashite", "ohayou", "konnichiwa", "konbanwa",
-    "oyasumi", "itadakimasu", "gochisousama", "tadaima", "okaeri",
 }
 
 def split_jp_id(text):
@@ -508,6 +488,7 @@ def main():
         log(f"Tone preset: {TONE}")
     else:
         log("Ollama not available - will speak raw text")
+    log(f"TTS backend: {TTS_BACKEND}")
 
     iteration = 0
     try:
