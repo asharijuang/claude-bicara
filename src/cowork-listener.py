@@ -37,6 +37,15 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
+# TTS backend — "system" (OS TTS), "voicevox" (Japanese), "piper" (neural Indonesian)
+TTS_BACKEND = "piper"
+
+# Piper configuration — neural TTS, clear Indonesian, ~60 MB model
+PIPER_MODEL = os.path.expanduser("~/.claude/piper-voices/id_ID-news_tts-medium.onnx")
+PIPER_LENGTH_SCALE = 0.8   # 1.0=normal, <1.0=faster/younger, >1.0=slower
+PIPER_NOISE_SCALE = 0.8    # voice variability
+PIPER_VOLUME_BOOST = 2.0   # afplay volume multiplier
+
 # Tone preset — pick one: "casual", "formal", "cute", "anime", "news"
 TONE = "casual"
 
@@ -320,7 +329,66 @@ def speak_linux(text):
         return False
 
 
+def speak_piper(text):
+    """Speak text using local Piper neural TTS (Indonesian, clear + natural)."""
+    try:
+        text = strip_emojis_and_code(text)
+        if not text.strip():
+            return False
+        if not os.path.exists(PIPER_MODEL):
+            log(f"Piper model not found at {PIPER_MODEL}")
+            return False
+
+        wav_path = "/tmp/claude_bicara_piper.wav"
+        # Pipe text to piper CLI
+        proc = subprocess.run(
+            [
+                sys.executable, "-m", "piper",
+                "--model", PIPER_MODEL,
+                "--length-scale", str(PIPER_LENGTH_SCALE),
+                "--noise-scale", str(PIPER_NOISE_SCALE),
+                "--output-file", wav_path,
+            ],
+            input=text,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+        if proc.returncode != 0 or not os.path.exists(wav_path):
+            log(f"Piper error: {proc.stderr[:200]}")
+            return False
+
+        # Play WAV with volume boost
+        if sys.platform == "darwin":
+            subprocess.run(
+                ["afplay", "-v", str(PIPER_VOLUME_BOOST), wav_path],
+                check=True, timeout=300,
+            )
+        elif sys.platform == "win32":
+            ps = f"(New-Object Media.SoundPlayer '{wav_path}').PlaySync();"
+            subprocess.run(["powershell", "-Command", ps], check=True, timeout=300)
+        else:
+            subprocess.run(["aplay", wav_path], check=True, timeout=300)
+        return True
+    except FileNotFoundError:
+        log("Piper not installed — run: pip install piper-tts")
+        return False
+    except Exception as e:
+        log(f"Piper error: {e}")
+        return False
+
+
 def speak(text):
+    """Route to the configured TTS backend with auto-fallback to system TTS."""
+    if TTS_BACKEND == "piper":
+        if speak_piper(text):
+            return True
+        log("Piper failed — falling back to system TTS")
+    elif TTS_BACKEND == "voicevox":
+        if speak_voicevox(text):
+            return True
+        log("VOICEVOX failed — falling back to system TTS")
+
     if sys.platform == "darwin":
         return speak_mac(text)
     if sys.platform == "win32":
