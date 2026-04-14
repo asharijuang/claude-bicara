@@ -38,26 +38,34 @@ OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
 # TTS backend — "system" (OS TTS), "voicevox" (Japanese), "piper" (neural Indonesian)
-TTS_BACKEND = "piper"
+TTS_BACKEND = "hybrid"
 
-# Piper configuration — neural TTS, clear Indonesian, ~60 MB model
+# Piper configuration — neural TTS, ~60 MB per voice model
 PIPER_MODEL = os.path.expanduser("~/.claude/piper-voices/id_ID-news_tts-medium.onnx")
+PIPER_DATA_DIR = os.path.expanduser("~/.claude/piper-voices")
 PIPER_LENGTH_SCALE = 0.8   # 1.0=normal, <1.0=faster/younger, >1.0=slower
 PIPER_NOISE_SCALE = 0.8    # voice variability
 PIPER_VOLUME_BOOST = 2.0   # afplay volume multiplier
 
 # Tone preset — pick one: "casual", "formal", "cute", "anime", "news"
-TONE = "casual"
+TONE = "senpai"
 
 TONE_PROMPTS = {
     "casual": (
-        "Ringkas teks ini seperti sedang ngobrol santai di telepon ke teman.\n"
+        "Ringkas teks ini dengan gaya chat gaul kekinian di grup WhatsApp/Discord "
+        "bareng teman dekat.\n"
         "Aturan:\n"
         "- Maksimal 1-2 kalimat pendek\n"
-        "- Bahasa Indonesia casual, natural\n"
+        "- Bahasa gaul Indonesia modern\n"
+        "- Pakai 'gw/gue', 'lu/lo', 'nih', 'kan', 'sih', 'dong', 'cuy', 'bestie'\n"
+        "- Boleh selipkan: 'auto', 'literally', 'mantul', 'anjay', 'njir', "
+        "'gilasih', 'wagelaseh', 'mantap jiwa'\n"
         "- Skip detail teknis, command, code, link\n"
         "- Fokus ke pesan inti saja\n"
-        "- Tanpa emoji, tanpa markdown"
+        "- Tanpa emoji, tanpa markdown\n\n"
+        "Contoh gaya:\n"
+        "- 'Njir mantul, bug-nya auto kelar cuy, tinggal restart aja sih!'\n"
+        "- 'Gw literally udah beresin tuh, tinggal lu coba bro!'"
     ),
     "formal": (
         "Ringkas teks berikut dengan gaya profesional dan formal seperti "
@@ -98,7 +106,62 @@ TONE_PROMPTS = {
         "- Skip detail teknis dan command\n"
         "- Tanpa emoji, tanpa markdown"
     ),
+    "senpai": (
+        "Ringkas teks ini dengan gaya kouhai wibu gaul yang ngobrol ke senpai.\n"
+        "Aturan penting untuk hybrid TTS:\n"
+        "- Maksimal 2-3 kalimat pendek\n"
+        "- PISAHKAN kalimat Indonesia dan Jepang dengan KOMA/TITIK\n"
+        "- Setiap kalimat ISI hanya satu bahasa (ID atau JP), jangan campur!\n"
+        "- Minimal 1 kalimat full Jepang per output\n"
+        "- Frasa JP lengkap: 'Hai senpai', 'Chotto matte', 'Daijoubu desu ka', "
+        "'Ganbatte kudasai', 'Arigatou gozaimasu', 'Sou desu ne', "
+        "'Sugoi desu ne', 'Yatta desu yo', 'Mou ichido', 'Wakarimashita'\n"
+        "- Kalimat Indonesia gaul: pakai 'gw/gue', 'auto', 'literally', "
+        "'njir', 'mantul', 'cuy', 'bestie', 'anjay', 'wagelaseh'\n"
+        "- Skip command dan code\n"
+        "- Tanpa emoji, tanpa markdown\n\n"
+        "Contoh gaya:\n"
+        "- 'Hai senpai! Bug-nya auto fixed dong, literally gw udah ngecek. "
+        "Sugoi desu ne. Coba lu restart ya bestie. Ganbatte kudasai!'\n"
+        "- 'Chotto matte senpai. Gw literally lagi ngecek nih cuy. "
+        "Daijoubu desu ka? Njir mantul banget, mou sukoshi ya!'"
+    ),
 }
+
+
+# Hybrid TTS: Japanese romaji tokens (spoken by Kyoko instead of Piper)
+JAPANESE_TOKENS = {
+    "senpai", "sempai", "kouhai", "oniichan", "oneechan", "nee-san",
+    "desu", "ne", "desu ne", "da yo", "nanoda", "yo", "kana",
+    "yatta", "sugoi", "kawaii", "daijoubu", "ganbatte", "arigatou",
+    "sumimasen", "hai", "baka", "chotto", "etto", "matte",
+    "wakatta", "wakarimashita", "mattaku", "hontou", "naruhodo",
+    "yappari", "yosh", "gozaimasu", "kudasai", "ja", "ne~",
+    "kimochi", "warui", "sukoshi", "ichido", "mou", "dozo",
+    "bye", "hajimemashite", "ohayou", "konnichiwa", "konbanwa",
+    "oyasumi", "itadakimasu", "gochisousama", "tadaima", "okaeri",
+}
+
+def split_jp_id(text):
+    """Split text into [(segment, is_japanese), ...] by sentence.
+
+    Detects Japanese if >= 30% of words in a sentence are romaji JP tokens.
+    """
+    import re
+    sentences = re.split(r"(?<=[.!?~])\s+", text)
+    result = []
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        words = re.findall(r"[A-Za-z~]+", sent.lower())
+        if not words:
+            result.append((sent, False))
+            continue
+        jp_count = sum(1 for w in words if w.strip("~") in JAPANESE_TOKENS)
+        is_jp = jp_count >= max(1, len(words) * 0.3)
+        result.append((sent, is_jp))
+    return result
 
 Path(CLAUDE_DIR).mkdir(parents=True, exist_ok=True)
 
@@ -329,9 +392,27 @@ def speak_linux(text):
         return False
 
 
+_piper_voice_cache = None
+
+def _get_piper_voice():
+    """Lazy-load Piper voice model (keeps it in memory)."""
+    global _piper_voice_cache
+    if _piper_voice_cache is None:
+        from piper import PiperVoice
+        from pathlib import Path
+        Path(PIPER_DATA_DIR).mkdir(parents=True, exist_ok=True)
+        voice = PiperVoice.load(PIPER_MODEL)
+        voice.download_dir = Path(PIPER_DATA_DIR)
+        _piper_voice_cache = voice
+    return _piper_voice_cache
+
+
 def speak_piper(text):
-    """Speak text using local Piper neural TTS (Indonesian, clear + natural)."""
+    """Speak text using local Piper neural TTS (Python API, supports all langs)."""
     try:
+        import wave
+        from piper import SynthesisConfig
+
         text = strip_emojis_and_code(text)
         if not text.strip():
             return False
@@ -339,26 +420,17 @@ def speak_piper(text):
             log(f"Piper model not found at {PIPER_MODEL}")
             return False
 
-        wav_path = "/tmp/claude_bicara_piper.wav"
-        # Pipe text to piper CLI
-        proc = subprocess.run(
-            [
-                sys.executable, "-m", "piper",
-                "--model", PIPER_MODEL,
-                "--length-scale", str(PIPER_LENGTH_SCALE),
-                "--noise-scale", str(PIPER_NOISE_SCALE),
-                "--output-file", wav_path,
-            ],
-            input=text,
-            text=True,
-            capture_output=True,
-            timeout=60,
+        voice = _get_piper_voice()
+        cfg = SynthesisConfig(
+            length_scale=PIPER_LENGTH_SCALE,
+            noise_scale=PIPER_NOISE_SCALE,
+            volume=1.0,
         )
-        if proc.returncode != 0 or not os.path.exists(wav_path):
-            log(f"Piper error: {proc.stderr[:200]}")
-            return False
 
-        # Play WAV with volume boost
+        wav_path = "/tmp/claude_bicara_piper.wav"
+        with wave.open(wav_path, "wb") as wav:
+            voice.synthesize_wav(text, wav, syn_config=cfg)
+
         if sys.platform == "darwin":
             subprocess.run(
                 ["afplay", "-v", str(PIPER_VOLUME_BOOST), wav_path],
@@ -370,7 +442,7 @@ def speak_piper(text):
         else:
             subprocess.run(["aplay", wav_path], check=True, timeout=300)
         return True
-    except FileNotFoundError:
+    except ImportError:
         log("Piper not installed — run: pip install piper-tts")
         return False
     except Exception as e:
@@ -378,9 +450,48 @@ def speak_piper(text):
         return False
 
 
+def speak_kyoko(text):
+    """Speak text with macOS Kyoko (Japanese voice), boosted volume."""
+    try:
+        text = strip_emojis_and_code(text)
+        if not text.strip():
+            return False
+        subprocess.run(
+            ["say", "-v", "Kyoko", "-r", "200", text],
+            check=True, timeout=300,
+        )
+        return True
+    except Exception as e:
+        log(f"Kyoko error: {e}")
+        return False
+
+
+def speak_hybrid(text):
+    """Split text by language — Piper speaks Indonesian, Kyoko speaks Japanese."""
+    try:
+        segments = split_jp_id(text)
+        if not segments:
+            return False
+        for seg, is_jp in segments:
+            engine = "Kyoko" if is_jp else "Piper"
+            log(f"[hybrid/{engine}] {seg[:60]}")
+            if is_jp:
+                speak_kyoko(seg)
+            else:
+                speak_piper(seg)
+        return True
+    except Exception as e:
+        log(f"Hybrid error: {e}")
+        return False
+
+
 def speak(text):
     """Route to the configured TTS backend with auto-fallback to system TTS."""
-    if TTS_BACKEND == "piper":
+    if TTS_BACKEND == "hybrid":
+        if speak_hybrid(text):
+            return True
+        log("Hybrid failed — falling back to system TTS")
+    elif TTS_BACKEND == "piper":
         if speak_piper(text):
             return True
         log("Piper failed — falling back to system TTS")
