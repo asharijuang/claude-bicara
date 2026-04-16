@@ -47,24 +47,10 @@ PIPER_LENGTH_SCALE = 0.8   # 1.0=normal, <1.0=faster/younger, >1.0=slower
 PIPER_NOISE_SCALE = 0.8    # voice variability
 PIPER_VOLUME_BOOST = 2.0   # afplay volume multiplier
 
-# ElevenLabs TTS configuration — high-quality cloud TTS
-# Get your API key from https://elevenlabs.io (free tier: 10,000 chars/month)
-ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # Default: George (narrative)
-ELEVENLABS_MODEL = "eleven_v3"                   # Most expressive, 70+ languages
-ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
-# Voice settings for expressiveness
-ELEVENLABS_STABILITY = 0.3        # 0.0-1.0, lower = more expressive/varied
-ELEVENLABS_SIMILARITY = 0.75      # 0.0-1.0, voice clarity
-ELEVENLABS_STYLE = 0.5            # 0.0-1.0, style exaggeration
-ELEVENLABS_SPEAKER_BOOST = True   # clarity boost
-
-# Gemini TTS configuration — cloud-based neural TTS via Google Gemini API
-# Get your API key from https://aistudio.google.com/apikey
-# Reads from .env file (next to this script or project root) or environment variable
+# --- Load .env file FIRST so all os.environ.get() calls below pick up keys ---
 def _load_env():
-    """Load .env file from script dir or project root if present."""
-    for base in [os.path.dirname(os.path.abspath(__file__)), CLAUDE_DIR]:
+    """Load .env file from script dir or CLAUDE_DIR if present."""
+    for base in [os.path.dirname(os.path.abspath(__file__)), os.path.expanduser("~/.claude")]:
         env_path = os.path.join(base, ".env")
         if os.path.exists(env_path):
             with open(env_path) as f:
@@ -75,6 +61,20 @@ def _load_env():
                         os.environ.setdefault(k.strip(), v.strip())
 _load_env()
 
+# ElevenLabs TTS configuration — high-quality cloud TTS
+# Get your API key from https://elevenlabs.io (free tier: 10,000 chars/month)
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
+ELEVENLABS_MODEL = "eleven_v3"                   # Most expressive, 70+ languages
+ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+# Voice settings for expressiveness
+ELEVENLABS_STABILITY = 0.3        # 0.0-1.0, lower = more expressive/varied
+ELEVENLABS_SIMILARITY = 0.75      # 0.0-1.0, voice clarity
+ELEVENLABS_STYLE = 0.5            # 0.0-1.0, style exaggeration
+ELEVENLABS_SPEAKER_BOOST = True   # clarity boost
+
+# Gemini TTS configuration — cloud-based neural TTS via Google Gemini API
+# Get your API key from https://aistudio.google.com/apikey
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
 GEMINI_VOICE = "Kore"          # Prebuilt voices: Kore, Aoede, Puck, Zephyr, Leda, etc.
