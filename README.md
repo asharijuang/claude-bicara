@@ -74,6 +74,74 @@ The installer will:
 
 ---
 
+## 🪟 Quick Install (Windows)
+
+**Prerequisites:** Python 3.8+, [Ollama](https://ollama.com), [Claude Desktop](https://claude.ai/download)
+
+```powershell
+# 1. Clone the repo
+git clone https://github.com/asharijuang/claude-bicara.git
+cd claude-bicara
+
+# 2. Install dependencies
+pip install requests
+
+# 3. Pull the Ollama model
+ollama pull gemma3:1b
+
+# 4. Copy the daemon script
+mkdir $env:USERPROFILE\.claude -Force
+copy src\cowork-listener.py $env:USERPROFILE\.claude\cowork-listener.py
+```
+
+**Set up .env (optional, for cloud TTS):**
+
+```powershell
+# Create .env in ~/.claude/
+@"
+ELEVENLABS_API_KEY=your-key-here
+GEMINI_API_KEY=your-key-here
+"@ | Out-File $env:USERPROFILE\.claude\.env -Encoding utf8
+```
+
+**Run manually:**
+
+```powershell
+python $env:USERPROFILE\.claude\cowork-listener.py
+```
+
+**Auto-start on login (Task Scheduler):**
+
+```powershell
+# Create a scheduled task that runs on login
+$action = New-ScheduledTaskAction `
+    -Execute "pythonw" `
+    -Argument "$env:USERPROFILE\.claude\cowork-listener.py"
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+Register-ScheduledTask `
+    -TaskName "CoworkListener" `
+    -Action $action `
+    -Trigger $trigger `
+    -Description "Claude Bicara — voice listener for Cowork"
+
+# Verify it's registered
+Get-ScheduledTask -TaskName "CoworkListener"
+```
+
+**Stop / Remove:**
+
+```powershell
+# Stop
+Stop-ScheduledTask -TaskName "CoworkListener"
+
+# Remove entirely
+Unregister-ScheduledTask -TaskName "CoworkListener" -Confirm:$false
+```
+
+> _Windows uses built-in SAPI for TTS by default. For better quality, set `TTS_BACKEND = "elevenlabs"` or `"gemini"` in the script._
+
+---
+
 ## 🎯 Usage
 
 Once installed, it just runs. Open Claude Desktop, use Cowork, and you'll hear summaries of each response.
