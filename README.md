@@ -31,7 +31,9 @@ Listen to Claude Cowork responses hands-free — a tiny background daemon that w
               Magic Quidditch sambil minum cokelat panas."
 ```
 
-> 💡 _Add a screen-recording or animated GIF here to show it in action._
+[![Claude Bicara Demo](https://img.youtube.com/vi/4dWEJPA4-pQ/maxresdefault.jpg)](https://youtu.be/4dWEJPA4-pQ?si=ptS9gMfnhJ_h1won)
+
+> 🎬 _Click the image above to watch the demo on YouTube._
 
 ---
 
