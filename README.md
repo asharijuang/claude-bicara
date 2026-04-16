@@ -12,7 +12,7 @@
 
 Listen to Claude Cowork responses hands-free — a tiny background daemon that watches your Cowork session, asks a **local** Ollama model to summarize each reply into a short, phone-conversation-style sentence, and reads it out loud with your OS's built-in TTS.
 
-**Everything runs locally.** No cloud calls. No API keys. No data leaves your machine.
+**Runs locally by default.** Summarization via local Ollama, TTS via Piper or system voice. Optional cloud TTS via Google Gemini for the highest quality voices.
 
 > _"Jadi kamu bisa lanjut ngoding, scroll dokumen, atau ngopi santai — sambil tetap dengerin apa yang Claude lagi kerjakan."_
 
@@ -44,7 +44,7 @@ Listen to Claude Cowork responses hands-free — a tiny background daemon that w
 - 💻 **Cross-platform TTS** — macOS (`say`), Windows (SAPI), Linux (`espeak`)
 - 🔁 **Auto-start on boot** — via `launchd` on macOS
 - 🧼 **Deduped by hash** — never speaks the same response twice
-- 🔒 **100% offline** — no telemetry, no API keys, no network calls beyond localhost Ollama
+- 🔒 **Privacy-first** — offline by default with Piper/system TTS, optional cloud via Gemini TTS
 
 ---
 
@@ -110,11 +110,53 @@ Open `~/.claude/cowork-listener.py` and edit the top of the file:
 | `CHECK_INTERVAL` | `10`           | poll interval in seconds                  |
 | `OLLAMA_MODEL`   | `gemma3:1b`    | any model you have pulled in Ollama       |
 | `OLLAMA_TIMEOUT` | `20`           | max seconds before falling back to raw    |
-| `TTS_BACKEND`    | `system`       | `system`, `voicevox`, `piper`, or `hybrid` |
+| `TTS_BACKEND`    | `system`       | `system`, `piper`, `gemini`, `hybrid`      |
+| `GEMINI_API_KEY` | _(env var)_    | Google AI Studio API key for Gemini TTS    |
+| `GEMINI_TTS_MODEL` | `gemini-2.5-flash-preview-tts` | Gemini TTS model          |
+| `GEMINI_VOICE`   | `Kore`         | Prebuilt voice (see Gemini TTS section)    |
+| `GEMINI_LANGUAGE_CODE` | `id-ID`  | Language hint for pronunciation            |
 | `PIPER_MODEL`    | id_ID-news_tts | Piper voice .onnx path                    |
 | `PIPER_LENGTH_SCALE` | `0.8`      | <1.0 = faster/younger voice               |
 | `PIPER_NOISE_SCALE`  | `0.8`      | voice variability                         |
 | `PIPER_VOLUME_BOOST` | `2.0`      | afplay -v multiplier (macOS)              |
+
+### ☁️ Gemini TTS (cloud-based, high quality, multilingual)
+
+Google's Gemini API offers cloud-based neural TTS with expressive, natural-sounding voices. Supports 24+ languages including Indonesian.
+
+**1. Get a free API key:**
+Visit [Google AI Studio](https://aistudio.google.com/apikey) and create an API key.
+
+**2. Install the SDK:**
+
+```bash
+pip3 install --user google-genai
+```
+
+**3. Set your API key** (pick one):
+
+```bash
+# Option A: Environment variable (recommended)
+export GEMINI_API_KEY="your-key-here"
+
+# Option B: Edit directly in ~/.claude/cowork-listener.py
+GEMINI_API_KEY = "your-key-here"
+
+# Option C: Add to launchd plist for auto-start
+# Add <key>GEMINI_API_KEY</key><string>your-key</string> in the Environment dict
+```
+
+**4. Edit `~/.claude/cowork-listener.py`:**
+
+```python
+TTS_BACKEND = "gemini"
+GEMINI_VOICE = "Kore"        # Try: Aoede, Puck, Zephyr, Leda, Fenrir
+GEMINI_LANGUAGE_CODE = "id-ID"
+```
+
+**Available voices:** Achernar, Achird, Algenib, Algieba, Alnilam, Aoede, Autonoe, Callirrhoe, Charon, Despina, Erinome, Fenrir, Gacrux, Iapetus, Kore, Leda, Orus, Puck, Pulcherrima, Rasalgethi, Sadachbia, Sadaltager, Schedar, Sulafat, Umbriel, Vindemiatrix, Zephyr
+
+> _Cloud-based — requires internet. Falls back to system TTS if offline or API key missing._
 
 ### 🧠 Piper neural TTS (Indonesian, natural voice)
 
@@ -221,11 +263,12 @@ ollama pull qwen2.5:0.5b
 │  in ~/Library/…     │      │  → finds latest msg  │      │  locally    │
 └─────────────────────┘      └──────────────────────┘      └──────┬──────┘
                                                                    │
-                                                                   ▼
-                                                            ┌─────────────┐
-                                                            │  macOS say  │
-                                                            │  (TTS)      │
-                                                            └─────────────┘
+                                                    ┌──────────────┼──────────────┐
+                                                    ▼              ▼              ▼
+                                              ┌──────────┐  ┌──────────┐  ┌──────────┐
+                                              │ Gemini   │  │  Piper   │  │ macOS    │
+                                              │ TTS ☁️   │  │ (local)  │  │ say      │
+                                              └──────────┘  └──────────┘  └──────────┘
 ```
 
 1. Claude Cowork writes each message to a JSONL file under `~/Library/Application Support/Claude/local-agent-mode-sessions/…`

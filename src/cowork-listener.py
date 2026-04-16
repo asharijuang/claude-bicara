@@ -37,8 +37,8 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
-# TTS backend — "system" (OS TTS), "voicevox" (Japanese), "piper" (neural Indonesian)
-TTS_BACKEND = "piper"
+# TTS backend — "system", "piper", "gemini", "hybrid"
+TTS_BACKEND = "gemini"
 
 # Piper configuration — neural TTS, ~60 MB per voice model
 PIPER_MODEL = os.path.expanduser("~/.claude/piper-voices/id_ID-news_tts-medium.onnx")
@@ -47,7 +47,35 @@ PIPER_LENGTH_SCALE = 0.8   # 1.0=normal, <1.0=faster/younger, >1.0=slower
 PIPER_NOISE_SCALE = 0.8    # voice variability
 PIPER_VOLUME_BOOST = 2.0   # afplay volume multiplier
 
-# Tone preset — pick one: "casual", "formal", "cute", "anime", "news"
+# Gemini TTS configuration — cloud-based neural TTS via Google Gemini API
+# Get your API key from https://aistudio.google.com/apikey
+# Reads from .env file (next to this script or project root) or environment variable
+def _load_env():
+    """Load .env file from script dir or project root if present."""
+    for base in [os.path.dirname(os.path.abspath(__file__)), CLAUDE_DIR]:
+        env_path = os.path.join(base, ".env")
+        if os.path.exists(env_path):
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip())
+_load_env()
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+GEMINI_VOICE = "Kore"          # Prebuilt voices: Kore, Aoede, Puck, Zephyr, Leda, etc.
+GEMINI_LANGUAGE_CODE = "id-ID"  # Language hint for pronunciation
+# Speech style instruction — Gemini TTS supports natural language control
+# This prefix is prepended to the text sent to Gemini TTS
+GEMINI_SPEECH_STYLE = (
+    "Say this like a cute, expressive anime kouhai character. "
+    "Use varied pitch — go higher when excited or surprised, lower when serious. "
+    "Add natural pauses for dramatic effect. Be energetic and lively: "
+)
+
+# Tone preset — pick one: "casual", "formal", "cute", "anime", "news", "senpai"
 TONE = "senpai"
 
 TONE_PROMPTS = {
@@ -443,6 +471,85 @@ def speak_piper(text):
         return False
 
 
+def speak_gemini(text):
+    """Speak text using Google Gemini TTS API (cloud-based, high quality)."""
+    try:
+        import wave
+        from google import genai
+        from google.genai import types
+
+        text = strip_emojis_and_code(text)
+        if not text.strip():
+            return False
+
+        api_key = GEMINI_API_KEY
+        if not api_key:
+            log("Gemini API key not set — set GEMINI_API_KEY env var or config")
+            return False
+
+        client = genai.Client(api_key=api_key)
+
+        # Prepend speech style instruction for expressive delivery
+        if GEMINI_SPEECH_STYLE:
+            text = GEMINI_SPEECH_STYLE + text
+
+        config_kwargs = {
+            "response_modalities": ["AUDIO"],
+            "speech_config": types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=GEMINI_VOICE,
+                    )
+                ),
+            ),
+        }
+        if GEMINI_LANGUAGE_CODE:
+            config_kwargs["speech_config"] = types.SpeechConfig(
+                language_code=GEMINI_LANGUAGE_CODE,
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=GEMINI_VOICE,
+                    )
+                ),
+            )
+
+        response = client.models.generate_content(
+            model=GEMINI_TTS_MODEL,
+            contents=text,
+            config=types.GenerateContentConfig(**config_kwargs),
+        )
+
+        data = response.candidates[0].content.parts[0].inline_data.data
+        if not data:
+            log("Gemini TTS returned empty audio")
+            return False
+
+        wav_path = "/tmp/claude_bicara_gemini.wav"
+        with wave.open(wav_path, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(data)
+
+        if sys.platform == "darwin":
+            subprocess.run(
+                ["afplay", "-v", str(PIPER_VOLUME_BOOST), wav_path],
+                check=True, timeout=300,
+            )
+        elif sys.platform == "win32":
+            ps = f"(New-Object Media.SoundPlayer '{wav_path}').PlaySync();"
+            subprocess.run(["powershell", "-Command", ps], check=True, timeout=300)
+        else:
+            subprocess.run(["aplay", wav_path], check=True, timeout=300)
+        return True
+    except ImportError:
+        log("google-genai not installed — run: pip install google-genai")
+        return False
+    except Exception as e:
+        log(f"Gemini TTS error: {e}")
+        return False
+
+
 def speak_kyoko(text):
     """Speak text with macOS Kyoko (Japanese voice), boosted volume."""
     try:
@@ -480,7 +587,14 @@ def speak_hybrid(text):
 
 def speak(text):
     """Route to the configured TTS backend with auto-fallback to system TTS."""
-    if TTS_BACKEND == "hybrid":
+    if TTS_BACKEND == "gemini":
+        if speak_gemini(text):
+            return True
+        log("Gemini TTS failed — falling back to Piper")
+        if speak_piper(text):
+            return True
+        log("Piper also failed — falling back to system TTS")
+    elif TTS_BACKEND == "hybrid":
         if speak_hybrid(text):
             return True
         log("Hybrid failed — falling back to system TTS")

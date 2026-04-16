@@ -1,3 +1,5 @@
 requests>=2.28.0
 # Optional: for Piper neural TTS backend
 # piper-tts>=1.4.0
+# Optional: for Gemini TTS backend (cloud-based, high quality)
+# google-genai>=1.0.0
