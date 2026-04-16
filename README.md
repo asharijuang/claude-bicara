@@ -110,7 +110,11 @@ Open `~/.claude/cowork-listener.py` and edit the top of the file:
 | `CHECK_INTERVAL` | `10`           | poll interval in seconds                  |
 | `OLLAMA_MODEL`   | `gemma3:1b`    | any model you have pulled in Ollama       |
 | `OLLAMA_TIMEOUT` | `20`           | max seconds before falling back to raw    |
-| `TTS_BACKEND`    | `system`       | `system`, `piper`, `gemini`, `hybrid`      |
+| `TTS_BACKEND`    | `system`       | `elevenlabs`, `gemini`, `piper`, `system`, `hybrid` |
+| `ELEVENLABS_API_KEY` | _(env var)_ | ElevenLabs API key                         |
+| `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | Voice ID (see ElevenLabs section) |
+| `ELEVENLABS_MODEL` | `eleven_v3`  | TTS model (most expressive)                |
+| `ELEVENLABS_STABILITY` | `0.3`    | 0.0–1.0, lower = more expressive           |
 | `GEMINI_API_KEY` | _(env var)_    | Google AI Studio API key for Gemini TTS    |
 | `GEMINI_TTS_MODEL` | `gemini-2.5-flash-preview-tts` | Gemini TTS model          |
 | `GEMINI_VOICE`   | `Kore`         | Prebuilt voice (see Gemini TTS section)    |
@@ -119,6 +123,34 @@ Open `~/.claude/cowork-listener.py` and edit the top of the file:
 | `PIPER_LENGTH_SCALE` | `0.8`      | <1.0 = faster/younger voice               |
 | `PIPER_NOISE_SCALE`  | `0.8`      | voice variability                         |
 | `PIPER_VOLUME_BOOST` | `2.0`      | afplay -v multiplier (macOS)              |
+
+### 🎙️ ElevenLabs TTS (premium quality, most expressive)
+
+Industry-leading cloud TTS with incredibly natural, expressive voices. Free tier: 10,000 chars/month (~10 min audio).
+
+**1. Get API key:** Sign up at [elevenlabs.io](https://elevenlabs.io) → Profile → API Keys
+
+**2. Set your API key:**
+
+```bash
+# In .env file (recommended)
+ELEVENLABS_API_KEY=your-key-here
+```
+
+**3. Configure in `~/.claude/cowork-listener.py`:**
+
+```python
+TTS_BACKEND = "elevenlabs"
+ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George (narrative)
+ELEVENLABS_STABILITY = 0.3     # Lower = more expressive
+ELEVENLABS_STYLE = 0.5         # Style exaggeration
+```
+
+**Popular voices:** Browse at [elevenlabs.io/voice-library](https://elevenlabs.io/voice-library). Copy the voice ID from any voice page.
+
+**Fallback chain:** ElevenLabs → Gemini → Piper → system TTS. If quota runs out, seamlessly falls back.
+
+> _Premium quality — best option if you want the most natural, expressive speech. Free tier is enough for casual use._
 
 ### ☁️ Gemini TTS (cloud-based, high quality, multilingual)
 

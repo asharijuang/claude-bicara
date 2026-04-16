@@ -37,8 +37,8 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "gemma3:1b"  # fast, lightweight, good with Indonesian
 OLLAMA_TIMEOUT = 20         # seconds
 
-# TTS backend — "system", "piper", "gemini", "hybrid"
-TTS_BACKEND = "gemini"
+# TTS backend — "elevenlabs", "gemini", "piper", "system", "hybrid"
+TTS_BACKEND = "elevenlabs"
 
 # Piper configuration — neural TTS, ~60 MB per voice model
 PIPER_MODEL = os.path.expanduser("~/.claude/piper-voices/id_ID-news_tts-medium.onnx")
@@ -46,6 +46,18 @@ PIPER_DATA_DIR = os.path.expanduser("~/.claude/piper-voices")
 PIPER_LENGTH_SCALE = 0.8   # 1.0=normal, <1.0=faster/younger, >1.0=slower
 PIPER_NOISE_SCALE = 0.8    # voice variability
 PIPER_VOLUME_BOOST = 2.0   # afplay volume multiplier
+
+# ElevenLabs TTS configuration — high-quality cloud TTS
+# Get your API key from https://elevenlabs.io (free tier: 10,000 chars/month)
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # Default: George (narrative)
+ELEVENLABS_MODEL = "eleven_v3"                   # Most expressive, 70+ languages
+ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+# Voice settings for expressiveness
+ELEVENLABS_STABILITY = 0.3        # 0.0-1.0, lower = more expressive/varied
+ELEVENLABS_SIMILARITY = 0.75      # 0.0-1.0, voice clarity
+ELEVENLABS_STYLE = 0.5            # 0.0-1.0, style exaggeration
+ELEVENLABS_SPEAKER_BOOST = True   # clarity boost
 
 # Gemini TTS configuration — cloud-based neural TTS via Google Gemini API
 # Get your API key from https://aistudio.google.com/apikey
@@ -471,6 +483,65 @@ def speak_piper(text):
         return False
 
 
+def speak_elevenlabs(text):
+    """Speak text using ElevenLabs cloud TTS API (high quality, expressive)."""
+    try:
+        text = strip_emojis_and_code(text)
+        if not text.strip():
+            return False
+
+        api_key = ELEVENLABS_API_KEY
+        if not api_key:
+            log("ElevenLabs API key not set — set ELEVENLABS_API_KEY env var")
+            return False
+
+        url = f"{ELEVENLABS_API_URL}/{ELEVENLABS_VOICE_ID}"
+        headers = {
+            "xi-api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        }
+        payload = {
+            "text": text,
+            "model_id": ELEVENLABS_MODEL,
+            "voice_settings": {
+                "stability": ELEVENLABS_STABILITY,
+                "similarity_boost": ELEVENLABS_SIMILARITY,
+                "style": ELEVENLABS_STYLE,
+                "use_speaker_boost": ELEVENLABS_SPEAKER_BOOST,
+            },
+        }
+
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        if response.status_code != 200:
+            log(f"ElevenLabs API error: {response.status_code} {response.text[:200]}")
+            return False
+
+        mp3_path = "/tmp/claude_bicara_elevenlabs.mp3"
+        with open(mp3_path, "wb") as f:
+            f.write(response.content)
+
+        if sys.platform == "darwin":
+            subprocess.run(
+                ["afplay", "-v", str(PIPER_VOLUME_BOOST), mp3_path],
+                check=True, timeout=300,
+            )
+        elif sys.platform == "win32":
+            # Windows: use PowerShell to play mp3
+            ps = (
+                "Add-Type -Path 'C:\\Windows\\Microsoft.NET\\Framework\\v4*\\WPF\\PresentationCore.dll';"
+                f"$p = New-Object System.Windows.Media.MediaPlayer;"
+                f"$p.Open('{mp3_path}'); $p.Play(); Start-Sleep -s 30"
+            )
+            subprocess.run(["powershell", "-Command", ps], check=True, timeout=300)
+        else:
+            subprocess.run(["mpg123", mp3_path], check=True, timeout=300)
+        return True
+    except Exception as e:
+        log(f"ElevenLabs error: {e}")
+        return False
+
+
 def speak_gemini(text):
     """Speak text using Google Gemini TTS API (cloud-based, high quality)."""
     try:
@@ -587,7 +658,17 @@ def speak_hybrid(text):
 
 def speak(text):
     """Route to the configured TTS backend with auto-fallback to system TTS."""
-    if TTS_BACKEND == "gemini":
+    if TTS_BACKEND == "elevenlabs":
+        if speak_elevenlabs(text):
+            return True
+        log("ElevenLabs failed — falling back to Gemini")
+        if speak_gemini(text):
+            return True
+        log("Gemini also failed — falling back to Piper")
+        if speak_piper(text):
+            return True
+        log("Piper also failed — falling back to system TTS")
+    elif TTS_BACKEND == "gemini":
         if speak_gemini(text):
             return True
         log("Gemini TTS failed — falling back to Piper")

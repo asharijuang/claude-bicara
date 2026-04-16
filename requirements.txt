@@ -3,3 +3,4 @@ requests>=2.28.0
 # piper-tts>=1.4.0
 # Optional: for Gemini TTS backend (cloud-based, high quality)
 # google-genai>=1.0.0
+# ElevenLabs uses requests (already required above) — no extra dependency!
