@@ -29,6 +29,7 @@ CLAUDE_CODE_PROJECTS_PATH = os.path.expanduser("~/.claude/projects")
 CLAUDE_DIR = os.path.expanduser("~/.claude")
 TRACKING_FILE = os.path.join(CLAUDE_DIR, ".cowork_last_spoken")
 LOG_FILE = os.path.join(CLAUDE_DIR, "cowork-listener.log")
+CONFIG_FILE = os.path.join(CLAUDE_DIR, "bicara-config.json")
 
 CHECK_INTERVAL = 10      # seconds between polls
 SPEECH_RATE = 200        # words per minute
@@ -199,6 +200,28 @@ def split_jp_id(text):
     return result
 
 Path(CLAUDE_DIR).mkdir(parents=True, exist_ok=True)
+
+_config_mtime = 0
+
+def reload_config_if_changed():
+    """Hot-reload config from bicara-config.json if it was modified."""
+    global TTS_BACKEND, TONE, _config_mtime
+    try:
+        if not os.path.exists(CONFIG_FILE):
+            return
+        mtime = os.path.getmtime(CONFIG_FILE)
+        if mtime <= _config_mtime:
+            return
+        _config_mtime = mtime
+        with open(CONFIG_FILE) as f:
+            cfg = json.load(f)
+        if "tone" in cfg and cfg["tone"] in TONE_PROMPTS:
+            TONE = cfg["tone"]
+        if "tts_backend" in cfg:
+            TTS_BACKEND = cfg["tts_backend"]
+        log(f"[config] Reloaded: TTS={TTS_BACKEND}, TONE={TONE}, muted={cfg.get('muted', False)}")
+    except Exception as e:
+        log(f"[config] Error reloading: {e}")
 
 
 MAX_LOG_SIZE = 1 * 1024 * 1024  # 1 MB — auto-truncate when exceeded
@@ -746,19 +769,35 @@ def main():
                 if sf:
                     log(f"Session file refreshed: {sf}")
 
+            # Hot-reload config from menu bar app
+            reload_config_if_changed()
+
+            # Check mute state
+            _muted = False
+            try:
+                if os.path.exists(CONFIG_FILE):
+                    with open(CONFIG_FILE) as f:
+                        _muted = json.load(f).get("muted", False)
+            except Exception:
+                pass
+
             response_text = get_last_response()
             if response_text:
                 h = response_hash(response_text)
                 if h != get_last_spoken_hash():
                     log(f"New response detected ({len(response_text)} chars)")
-                    summary = summarize_with_ollama(response_text) if ollama_ok else response_text
-                    log(f"Summary: {summary}")
-                    log(f"Speaking: {summary[:100]}...")
-                    if speak(summary):
+                    if _muted:
+                        log("[muted] Skipping speech")
                         save_spoken_hash(h)
-                        log("Spoken successfully")
                     else:
-                        log("Failed to speak")
+                        summary = summarize_with_ollama(response_text) if ollama_ok else response_text
+                        log(f"Summary: {summary}")
+                        log(f"Speaking: {summary[:100]}...")
+                        if speak(summary):
+                            save_spoken_hash(h)
+                            log("Spoken successfully")
+                        else:
+                            log("Failed to speak")
             time.sleep(CHECK_INTERVAL)
     except KeyboardInterrupt:
         log("Cowork Voice Listener stopped")
