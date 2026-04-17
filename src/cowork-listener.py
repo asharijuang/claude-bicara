@@ -21,9 +21,11 @@ from datetime import datetime
 # =============================================================================
 # Configuration — tweak these to taste
 # =============================================================================
+# Session paths — daemon scans ALL Claude session locations
 COWORK_BASE_PATH = os.path.expanduser(
     "~/Library/Application Support/Claude/local-agent-mode-sessions"
 )
+CLAUDE_CODE_PROJECTS_PATH = os.path.expanduser("~/.claude/projects")
 CLAUDE_DIR = os.path.expanduser("~/.claude")
 TRACKING_FILE = os.path.join(CLAUDE_DIR, ".cowork_last_spoken")
 LOG_FILE = os.path.join(CLAUDE_DIR, "cowork-listener.log")
@@ -208,17 +210,24 @@ def log(message):
 
 
 def find_latest_session_file():
-    """Recursively find the newest conversation JSONL under the Cowork folder."""
-    try:
-        if not os.path.exists(COWORK_BASE_PATH):
-            return None
+    """Recursively find the newest conversation JSONL across all Claude sessions.
 
+    Scans both Cowork (local-agent-mode-sessions) and Claude Code (~/.claude/projects).
+    """
+    try:
+        search_paths = [COWORK_BASE_PATH, CLAUDE_CODE_PROJECTS_PATH]
         jsonl_files = []
-        for root, _, files in os.walk(COWORK_BASE_PATH):
-            for f in files:
-                if f.endswith(".jsonl") and f != "audit.jsonl":
-                    full_path = os.path.join(root, f)
-                    jsonl_files.append((full_path, os.path.getmtime(full_path)))
+        for base in search_paths:
+            if not os.path.exists(base):
+                continue
+            for root, _, files in os.walk(base):
+                for f in files:
+                    if f.endswith(".jsonl") and f != "audit.jsonl":
+                        # Skip subagent transcripts
+                        if "/subagents/" in root:
+                            continue
+                        full_path = os.path.join(root, f)
+                        jsonl_files.append((full_path, os.path.getmtime(full_path)))
 
         if not jsonl_files:
             return None
@@ -523,7 +532,7 @@ def speak_elevenlabs(text):
 
         if sys.platform == "darwin":
             subprocess.run(
-                ["afplay", "-v", str(PIPER_VOLUME_BOOST), mp3_path],
+                ["afplay", "-v", "1.0", mp3_path],
                 check=True, timeout=300,
             )
         elif sys.platform == "win32":
@@ -658,23 +667,29 @@ def speak_hybrid(text):
 
 def speak(text):
     """Route to the configured TTS backend with auto-fallback to system TTS."""
+    log(f"[TTS] Backend: {TTS_BACKEND}")
     if TTS_BACKEND == "elevenlabs":
         if speak_elevenlabs(text):
+            log("[TTS] ✅ Spoken via ElevenLabs")
             return True
-        log("ElevenLabs failed — falling back to Gemini")
+        log("[TTS] ElevenLabs failed — falling back to Gemini")
         if speak_gemini(text):
+            log("[TTS] ✅ Spoken via Gemini")
             return True
-        log("Gemini also failed — falling back to Piper")
+        log("[TTS] Gemini also failed — falling back to Piper")
         if speak_piper(text):
+            log("[TTS] ✅ Spoken via Piper (fallback)")
             return True
-        log("Piper also failed — falling back to system TTS")
+        log("[TTS] Piper also failed — falling back to system TTS")
     elif TTS_BACKEND == "gemini":
         if speak_gemini(text):
+            log("[TTS] ✅ Spoken via Gemini")
             return True
-        log("Gemini TTS failed — falling back to Piper")
+        log("[TTS] Gemini failed — falling back to Piper")
         if speak_piper(text):
+            log("[TTS] ✅ Spoken via Piper (fallback)")
             return True
-        log("Piper also failed — falling back to system TTS")
+        log("[TTS] Piper also failed — falling back to system TTS")
     elif TTS_BACKEND == "hybrid":
         if speak_hybrid(text):
             return True
