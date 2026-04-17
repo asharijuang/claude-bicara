@@ -23,6 +23,7 @@ fi
 cat > "$APP_DIR/Contents/MacOS/ClaudeBicara" << LAUNCHER
 #!/bin/bash
 export PYTHONPATH=""
+export PYTHONNOUSERSITE=1
 exec $PYTHON "\$HOME/.claude/bicara-menubar.py"
 LAUNCHER
 chmod +x "$APP_DIR/Contents/MacOS/ClaudeBicara"
