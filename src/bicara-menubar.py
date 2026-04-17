@@ -170,7 +170,7 @@ class BicaraMenuBar(rumps.App):
         )
         if not os.path.exists(settings_script):
             settings_script = os.path.expanduser("~/.claude/bicara-settings.py")
-        subprocess.Popen(["python3", settings_script])
+        subprocess.Popen(["/opt/homebrew/opt/python@3.11/bin/python3.11", settings_script], env={**os.environ, "PYTHONNOUSERSITE": "1", "PYTHONPATH": ""})
 
     def do_restart(self, _):
         if restart_daemon():
