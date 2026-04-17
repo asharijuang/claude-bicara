@@ -109,8 +109,8 @@ class BicaraMenuBar(rumps.App):
             item.state = b == self.cfg["tts_backend"]
             self.tts_menu.add(item)
 
-        # --- API Keys ---
-        self.keys_item = rumps.MenuItem("🔑 API Keys...", callback=self.edit_keys)
+        # --- Settings window ---
+        self.settings_item = rumps.MenuItem("⚙️ Settings...", callback=self.open_settings)
 
         # --- Daemon control ---
         self.daemon_menu = rumps.MenuItem("⚙️ Daemon")
@@ -126,11 +126,11 @@ class BicaraMenuBar(rumps.App):
 
         self.menu = [
             self.mute_item,
-            None,  # separator
+            None,
             self.tone_menu,
             self.tts_menu,
             None,
-            self.keys_item,
+            self.settings_item,
             self.daemon_menu,
             None,
             self.quit_item,
@@ -164,41 +164,13 @@ class BicaraMenuBar(rumps.App):
         self._apply_config()
 
 
-    def edit_keys(self, _):
-        env = load_env()
-        # ElevenLabs key
-        el_key = env.get("ELEVENLABS_API_KEY", "")
-        el_mask = f"{el_key[:8]}...{el_key[-4:]}" if len(el_key) > 12 else "(not set)"
-        # Gemini key
-        gm_key = env.get("GEMINI_API_KEY", "")
-        gm_mask = f"{gm_key[:8]}...{gm_key[-4:]}" if len(gm_key) > 12 else "(not set)"
-        # Voice ID
-        voice_id = env.get("ELEVENLABS_VOICE_ID", "")
-        v_mask = voice_id if voice_id else "(default)"
-
-        resp = rumps.Window(
-            title="API Keys",
-            message=(
-                f"ElevenLabs: {el_mask}\n"
-                f"Gemini: {gm_mask}\n"
-                f"Voice ID: {v_mask}\n\n"
-                "Paste new key as KEY=VALUE\n"
-                "e.g. ELEVENLABS_API_KEY=sk_abc123"
-            ),
-            default_text="",
-            ok="Save",
-            cancel="Cancel",
-            dimensions=(400, 100),
-        ).run()
-
-        if resp.clicked and resp.text.strip():
-            for line in resp.text.strip().split("\n"):
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    env[k.strip()] = v.strip()
-            save_env(env)
-            restart_daemon()
-            rumps.notification("Claude Bicara", "", "API keys updated")
+    def open_settings(self, _):
+        settings_script = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "bicara-settings.py"
+        )
+        if not os.path.exists(settings_script):
+            settings_script = os.path.expanduser("~/.claude/bicara-settings.py")
+        subprocess.Popen(["python3", settings_script])
 
     def do_restart(self, _):
         if restart_daemon():

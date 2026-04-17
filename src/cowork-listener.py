@@ -150,17 +150,17 @@ TONE_PROMPTS = {
         "- Setiap kalimat ISI hanya satu bahasa (ID atau JP), jangan campur!\n"
         "- Minimal 1 kalimat full Jepang per output\n"
         "- Frasa JP lengkap: 'Hai senpai', 'Chotto matte', 'Daijoubu desu ka', "
-        "'Ganbatte kudasai', 'Arigatou gozaimasu', 'Sou desu ne', "
+        "'Ganbatte', 'Arigatou gozaimasu', 'Sou desu ne', "
         "'Sugoi desu ne', 'Yatta desu yo', 'Mou ichido', 'Wakarimashita'\n"
-        "- Kalimat Indonesia gaul: pakai 'gw/gue', 'auto', 'literally', "
-        "'njir', 'mantul', 'cuy', 'bestie', 'anjay', 'wagelaseh'\n"
+        "- Kalimat Indonesia gaul: pakai 'literally', "
+        "'njir', 'mantul', 'cuy', 'anjay'\n"
         "- Skip command dan code\n"
         "- Tanpa emoji, tanpa markdown\n\n"
         "Contoh gaya:\n"
         "- 'Hai senpai! Bug-nya auto fixed dong, literally gw udah ngecek. "
-        "Sugoi desu ne. Coba lu restart ya bestie. Ganbatte kudasai!'\n"
+        "Sugoi desu ne. Coba lu restart ya bestie. Ganbatte!'\n"
         "- 'Chotto matte senpai. Gw literally lagi ngecek nih cuy. "
-        "Daijoubu desu ka? Njir mantul banget, mou sukoshi ya!'"
+        "Njir mantul banget, mou sukoshi ya!'"
     ),
 }
 
@@ -215,10 +215,13 @@ def reload_config_if_changed():
         _config_mtime = mtime
         with open(CONFIG_FILE) as f:
             cfg = json.load(f)
-        if "tone" in cfg and cfg["tone"] in TONE_PROMPTS:
+        if "tone" in cfg:
             TONE = cfg["tone"]
         if "tts_backend" in cfg:
             TTS_BACKEND = cfg["tts_backend"]
+        # Load custom tone prompts from config
+        if "tone_prompts" in cfg:
+            TONE_PROMPTS.update(cfg["tone_prompts"])
         log(f"[config] Reloaded: TTS={TTS_BACKEND}, TONE={TONE}, muted={cfg.get('muted', False)}")
     except Exception as e:
         log(f"[config] Error reloading: {e}")
