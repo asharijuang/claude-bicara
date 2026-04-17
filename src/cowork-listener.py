@@ -201,6 +201,23 @@ def split_jp_id(text):
 Path(CLAUDE_DIR).mkdir(parents=True, exist_ok=True)
 
 
+MAX_LOG_SIZE = 1 * 1024 * 1024  # 1 MB — auto-truncate when exceeded
+MAX_LOG_KEEP_LINES = 500        # keep last N lines after truncation
+
+
+def _rotate_log_if_needed():
+    """Truncate log file to last N lines if it exceeds MAX_LOG_SIZE."""
+    try:
+        if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > MAX_LOG_SIZE:
+            with open(LOG_FILE, "r") as f:
+                lines = f.readlines()
+            with open(LOG_FILE, "w") as f:
+                f.write(f"[LOG ROTATED — kept last {MAX_LOG_KEEP_LINES} lines]\n")
+                f.writelines(lines[-MAX_LOG_KEEP_LINES:])
+    except Exception:
+        pass
+
+
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {message}"
@@ -711,6 +728,7 @@ def speak(text):
 
 
 def main():
+    _rotate_log_if_needed()
     log("Cowork Voice Listener started")
     ollama_ok = check_ollama_available()
     if ollama_ok:
