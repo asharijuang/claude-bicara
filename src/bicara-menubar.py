@@ -88,7 +88,7 @@ def is_daemon_running():
 class BicaraMenuBar(rumps.App):
     def __init__(self):
         self.cfg = load_config()
-        icon_title = "🔇" if self.cfg["muted"] else "🎙️"
+        icon_title = "🔇" if self.cfg["muted"] else "CB"
         super().__init__(icon_title, quit_button=None)
 
         # --- Mute toggle ---
@@ -142,7 +142,7 @@ class BicaraMenuBar(rumps.App):
         save_config(self.cfg)
         restart_daemon()
         # Update icon
-        self.title = "🔇" if self.cfg["muted"] else "🎙️"
+        self.title = "🔇" if self.cfg["muted"] else "CB"
 
     def toggle_mute(self, sender):
         self.cfg["muted"] = not self.cfg["muted"]

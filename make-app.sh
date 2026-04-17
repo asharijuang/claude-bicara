@@ -7,6 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$SCRIPT_DIR/dist/ClaudeBicara.app"
 INSTALL_DIR="/Applications/ClaudeBicara.app"
+PYTHON="/opt/homebrew/opt/python@3.11/bin/python3.11"
 
 echo "🔨 Building ClaudeBicara.app..."
 
@@ -14,18 +15,18 @@ echo "🔨 Building ClaudeBicara.app..."
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
-# Write launcher
-cat > "$APP_DIR/Contents/MacOS/ClaudeBicara" << 'LAUNCHER'
-#!/bin/bash
-DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
-SCRIPT="$DIR/../src/bicara-menubar.py"
-if [ ! -f "$SCRIPT" ]; then
-    SCRIPT="$HOME/.claude/bicara-menubar.py"
+# Copy app icon
+if [ -f "$SCRIPT_DIR/src/AppIcon.icns" ]; then
+    cp "$SCRIPT_DIR/src/AppIcon.icns" "$APP_DIR/Contents/Resources/"
 fi
-export PYTHONPATH="$HOME/Library/Python/3.9/lib/python/site-packages:$PYTHONPATH"
-exec /opt/homebrew/opt/python@3.11/bin/python3.11 "$SCRIPT"
+# Write launcher — PYTHONPATH cleared to avoid system 3.9 conflicts
+cat > "$APP_DIR/Contents/MacOS/ClaudeBicara" << LAUNCHER
+#!/bin/bash
+export PYTHONPATH=""
+exec $PYTHON "\$HOME/.claude/bicara-menubar.py"
 LAUNCHER
 chmod +x "$APP_DIR/Contents/MacOS/ClaudeBicara"
+
 # Write Info.plist
 cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -39,9 +40,9 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key>
     <string>com.asharijuang.claude-bicara</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>1.1.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.1.0</string>
     <key>CFBundleExecutable</key>
     <string>ClaudeBicara</string>
     <key>CFBundleIconFile</key>
