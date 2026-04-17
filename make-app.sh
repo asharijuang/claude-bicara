@@ -23,7 +23,7 @@ if [ ! -f "$SCRIPT" ]; then
     SCRIPT="$HOME/.claude/bicara-menubar.py"
 fi
 export PYTHONPATH="$HOME/Library/Python/3.9/lib/python/site-packages:$PYTHONPATH"
-exec /usr/bin/python3 "$SCRIPT"
+exec /opt/homebrew/opt/python@3.11/bin/python3.11 "$SCRIPT"
 LAUNCHER
 chmod +x "$APP_DIR/Contents/MacOS/ClaudeBicara"
 # Write Info.plist

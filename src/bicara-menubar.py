@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/opt/homebrew/opt/python@3.11/bin/python3.11
 """
 Claude Bicara — macOS Menu Bar Controller
 Controls the cowork-listener daemon: tone, mute, TTS backend, API keys.
