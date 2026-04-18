@@ -7,6 +7,7 @@ Launched from menu bar app or standalone.
 
 import os
 import json
+import signal
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
@@ -54,6 +55,17 @@ def save_config(cfg):
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
 
+
+
+def notify_menubar():
+    """Send SIGUSR1 to menubar process to reload config."""
+    pid_path = os.path.expanduser("~/.claude/bicara-menubar.pid")
+    try:
+        with open(pid_path) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, signal.SIGUSR1)
+    except Exception:
+        pass
 
 def load_env():
     env = {}
@@ -325,6 +337,7 @@ class SettingsApp:
         self.cfg["tts_backend"] = self.tts_var.get()
         self.cfg["tone_prompts"] = tone_prompts
         save_config(self.cfg)
+        notify_menubar()
 
         # Save API keys to .env
         env = load_env()

@@ -7,6 +7,7 @@ Controls the cowork-listener daemon: tone, mute, TTS backend, API keys.
 import os
 import json
 import subprocess
+import signal
 import rumps
 
 CONFIG_PATH = os.path.expanduser("~/.claude/bicara-config.json")
@@ -124,6 +125,13 @@ class BicaraMenuBar(rumps.App):
         self.status_item.set_callback(None)
         self.daemon_menu.add(self.status_item)
 
+
+        # Write PID file so settings window can signal us
+        self._pid_path = os.path.expanduser("~/.claude/bicara-menubar.pid")
+        with open(self._pid_path, "w") as f:
+            f.write(str(os.getpid()))
+        signal.signal(signal.SIGUSR1, self._on_config_signal)
+
         # --- Quit ---
         self.quit_item = rumps.MenuItem("Quit Bicara Menu", callback=self.do_quit)
 
@@ -139,14 +147,7 @@ class BicaraMenuBar(rumps.App):
             self.quit_item,
         ]
 
-        # Watch config for changes from settings window
-        self._config_mtime = self._get_config_mtime()
 
-    def _get_config_mtime(self):
-        try:
-            return os.path.getmtime(CONFIG_PATH)
-        except Exception:
-            return 0
 
     def _rebuild_tone_menu(self):
         """Rebuild tone submenu from config tone_prompts."""
@@ -160,26 +161,21 @@ class BicaraMenuBar(rumps.App):
             item.state = t == self.cfg.get("tone", "senpai")
             self.tone_menu.add(item)
 
-    @rumps.timer(3)
-    def _check_config_changes(self, _):
-        """Poll config file for changes made by settings window."""
-        mtime = self._get_config_mtime()
-        if mtime > self._config_mtime:
-            self._config_mtime = mtime
-            self.cfg = load_config()
-            self._rebuild_tone_menu()
-            # Update TTS backend checkmarks
-            for item in self.tts_menu.values():
-                item.state = item.title == self.cfg.get("tts_backend", "elevenlabs")
-            # Update mute state
-            self.title = "🔇" if self.cfg.get("muted") else "CB"
-            mute_label = "🔊 Unmute" if self.cfg.get("muted") else "🔇 Mute"
-            self.mute_item.title = mute_label
+
+
+    def _on_config_signal(self, signum, frame):
+        """Reload config when settings window sends SIGUSR1."""
+        self.cfg = load_config()
+        self._rebuild_tone_menu()
+        for item in self.tts_menu.values():
+            item.state = item.title == self.cfg.get("tts_backend", "elevenlabs")
+        self.title = "🔇" if self.cfg.get("muted") else "CB"
+        mute_label = "🔊 Unmute" if self.cfg.get("muted") else "🔇 Mute"
+        self.mute_item.title = mute_label
 
     def _apply_config(self):
         """Write config JSON and restart daemon to pick up changes."""
         save_config(self.cfg)
-        self._config_mtime = self._get_config_mtime()
         restart_daemon()
         self.title = "🔇" if self.cfg["muted"] else "CB"
 
