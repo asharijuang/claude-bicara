@@ -15,14 +15,23 @@ PLIST_PATH = os.path.expanduser(
     "~/Library/LaunchAgents/com.asharijuang.cowork-listener.plist"
 )
 
+DEFAULT_TONES = {
+    "casual": "Ringkas teks ini seperti sedang ngobrol santai di telepon ke teman.",
+    "formal": "Ringkas teks berikut dengan gaya profesional dan formal.",
+    "cute": "Ringkas teks ini dengan gaya super imut~",
+    "anime": "Ringkas seperti karakter anime yang ekspresif!",
+    "news": "Ringkas seperti pembaca berita profesional.",
+    "senpai": "Ringkas seperti senpai yang sabar menjelaskan ke kouhai.",
+}
+
 DEFAULT_CONFIG = {
     "muted": False,
     "tone": "senpai",
     "tts_backend": "elevenlabs",
     "tts_fallback_order": ["elevenlabs", "gemini", "piper", "system"],
+    "tone_prompts": DEFAULT_TONES,
 }
 
-TONES = ["casual", "formal", "cute", "anime", "news", "senpai"]
 TTS_BACKENDS = ["elevenlabs", "gemini", "piper", "system"]
 
 
@@ -31,7 +40,6 @@ def load_config():
         if os.path.exists(CONFIG_PATH):
             with open(CONFIG_PATH) as f:
                 cfg = json.load(f)
-            # Merge with defaults for any missing keys
             for k, v in DEFAULT_CONFIG.items():
                 cfg.setdefault(k, v)
             return cfg
@@ -63,7 +71,6 @@ def save_env(env):
             f.write(f"{k}={v}\n")
 
 
-
 def restart_daemon():
     try:
         subprocess.run(["launchctl", "unload", PLIST_PATH],
@@ -84,7 +91,6 @@ def is_daemon_running():
         return False
 
 
-
 class BicaraMenuBar(rumps.App):
     def __init__(self):
         self.cfg = load_config()
@@ -94,13 +100,10 @@ class BicaraMenuBar(rumps.App):
         # --- Mute toggle ---
         mute_label = "🔊 Unmute" if self.cfg["muted"] else "🔇 Mute"
         self.mute_item = rumps.MenuItem(mute_label, callback=self.toggle_mute)
-        
-        # --- Tone submenu ---
+
+        # --- Tone submenu (from config, not hardcoded) ---
         self.tone_menu = rumps.MenuItem("🎭 Tone")
-        for t in TONES:
-            item = rumps.MenuItem(t, callback=self.set_tone)
-            item.state = t == self.cfg["tone"]
-            self.tone_menu.add(item)
+        self._rebuild_tone_menu()
 
         # --- TTS Backend submenu ---
         self.tts_menu = rumps.MenuItem("🔊 TTS Backend")
@@ -136,12 +139,48 @@ class BicaraMenuBar(rumps.App):
             self.quit_item,
         ]
 
+        # Watch config for changes from settings window
+        self._config_mtime = self._get_config_mtime()
+
+    def _get_config_mtime(self):
+        try:
+            return os.path.getmtime(CONFIG_PATH)
+        except Exception:
+            return 0
+
+    def _rebuild_tone_menu(self):
+        """Rebuild tone submenu from config tone_prompts."""
+        try:
+            self.tone_menu.clear()
+        except (AttributeError, Exception):
+            pass
+        tones = list(self.cfg.get("tone_prompts", DEFAULT_TONES).keys())
+        for t in tones:
+            item = rumps.MenuItem(t, callback=self.set_tone)
+            item.state = t == self.cfg.get("tone", "senpai")
+            self.tone_menu.add(item)
+
+    @rumps.timer(3)
+    def _check_config_changes(self, _):
+        """Poll config file for changes made by settings window."""
+        mtime = self._get_config_mtime()
+        if mtime > self._config_mtime:
+            self._config_mtime = mtime
+            self.cfg = load_config()
+            self._rebuild_tone_menu()
+            # Update TTS backend checkmarks
+            for item in self.tts_menu.values():
+                item.state = item.title == self.cfg.get("tts_backend", "elevenlabs")
+            # Update mute state
+            self.title = "🔇" if self.cfg.get("muted") else "CB"
+            mute_label = "🔊 Unmute" if self.cfg.get("muted") else "🔇 Mute"
+            self.mute_item.title = mute_label
 
     def _apply_config(self):
         """Write config JSON and restart daemon to pick up changes."""
         save_config(self.cfg)
+        self._config_mtime = self._get_config_mtime()
         restart_daemon()
-        # Update icon
         self.title = "🔇" if self.cfg["muted"] else "CB"
 
     def toggle_mute(self, sender):
@@ -163,14 +202,16 @@ class BicaraMenuBar(rumps.App):
             item.state = item.title == sender.title
         self._apply_config()
 
-
     def open_settings(self, _):
         settings_script = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "bicara-settings.py"
         )
         if not os.path.exists(settings_script):
             settings_script = os.path.expanduser("~/.claude/bicara-settings.py")
-        subprocess.Popen(["/opt/homebrew/opt/python@3.11/bin/python3.11", settings_script], env={**os.environ, "PYTHONNOUSERSITE": "1", "PYTHONPATH": ""})
+        subprocess.Popen(
+            ["/opt/homebrew/opt/python@3.11/bin/python3.11", settings_script],
+            env={**os.environ, "PYTHONNOUSERSITE": "1", "PYTHONPATH": ""},
+        )
 
     def do_restart(self, _):
         if restart_daemon():
@@ -189,4 +230,3 @@ class BicaraMenuBar(rumps.App):
 
 if __name__ == "__main__":
     BicaraMenuBar().run()
-
